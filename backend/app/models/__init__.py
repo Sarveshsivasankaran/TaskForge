@@ -13,6 +13,7 @@ from app.models.job import Job
 from app.models.attempt import JobAttempt
 from app.models.event import JobEvent
 from app.models.outbox import JobOutbox
+from app.models.queue_message import PersistentQueueMessage
 
 __all__ = [
     "Base",
@@ -20,6 +21,7 @@ __all__ = [
     "JobAttempt",
     "JobEvent",
     "JobOutbox",
+    "PersistentQueueMessage",
     "JobStatus",
     "AttemptStatus",
     "InvalidStateTransitionError",
