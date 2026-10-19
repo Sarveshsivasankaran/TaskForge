@@ -5,7 +5,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import AuthenticatedUser, get_current_user
+from app.core.security import AuthenticatedUser, get_optional_user
 from app.models.enums import JobStatus, AttemptStatus
 from app.models.job import Job
 from app.models.attempt import JobAttempt
@@ -21,11 +21,11 @@ router = APIRouter(prefix="/metrics", tags=["Metrics"])
     description="Calculates real-time aggregate execution metrics from authoritative database records."
 )
 async def get_metrics_summary(
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: Optional[AuthenticatedUser] = Depends(get_optional_user),
     session: AsyncSession = Depends(get_db)
 ) -> MetricsSummaryResponse:
-    # Service role views global metrics; individual users view their tenant metrics
-    where_clause = True if current_user.is_service_role else (Job.owner_id == current_user.id)
+    # Service role or public views global cluster metrics; authenticated non-admin users view their tenant metrics
+    where_clause = True if (not current_user or current_user.is_service_role or current_user.is_admin) else (Job.owner_id == current_user.id)
 
     # 1. Status counts
     status_query = (

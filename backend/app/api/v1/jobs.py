@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.core.security import AuthenticatedUser, get_current_user
+from app.core.security import AuthenticatedUser, get_current_user, get_optional_user
 from app.core.rate_limit import limiter
 from app.models.enums import JobStatus, validate_job_state_transition, InvalidStateTransitionError
 from app.models.job import Job
@@ -73,11 +73,11 @@ async def list_jobs(
     job_type: Optional[str] = Query(None, description="Filter by job type"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: Optional[AuthenticatedUser] = Depends(get_optional_user),
     session: AsyncSession = Depends(get_db)
 ) -> JobListResponse:
-    # Standard users only see their own jobs; service_role can view all
-    owner_filter = None if current_user.is_service_role else current_user.id
+    # Service role or unauthenticated operator views all jobs; authenticated standard user views their own
+    owner_filter = None if (not current_user or current_user.is_service_role or current_user.is_admin) else current_user.id
 
     items, total = await JobRepository.list_jobs(
         session=session,
@@ -104,10 +104,10 @@ async def list_jobs(
 )
 async def get_job_detail(
     job_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: Optional[AuthenticatedUser] = Depends(get_optional_user),
     session: AsyncSession = Depends(get_db)
 ) -> JobResponse:
-    owner_filter = None if current_user.is_service_role else current_user.id
+    owner_filter = None if (not current_user or current_user.is_service_role or current_user.is_admin) else current_user.id
     job = await JobRepository.get_by_id(session, job_id, owner_id=owner_filter)
     if not job:
         raise HTTPException(
@@ -126,10 +126,10 @@ async def get_job_detail(
 )
 async def get_job_attempts(
     job_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: Optional[AuthenticatedUser] = Depends(get_optional_user),
     session: AsyncSession = Depends(get_db)
 ) -> List[JobAttemptResponse]:
-    owner_filter = None if current_user.is_service_role else current_user.id
+    owner_filter = None if (not current_user or current_user.is_service_role or current_user.is_admin) else current_user.id
     job = await JobRepository.get_by_id(session, job_id, owner_id=owner_filter)
     if not job:
         raise HTTPException(
@@ -150,10 +150,10 @@ async def get_job_attempts(
 )
 async def get_job_events(
     job_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: Optional[AuthenticatedUser] = Depends(get_optional_user),
     session: AsyncSession = Depends(get_db)
 ) -> List[JobEventResponse]:
-    owner_filter = None if current_user.is_service_role else current_user.id
+    owner_filter = None if (not current_user or current_user.is_service_role or current_user.is_admin) else current_user.id
     job = await JobRepository.get_by_id(session, job_id, owner_id=owner_filter)
     if not job:
         raise HTTPException(
@@ -176,10 +176,10 @@ async def get_job_logs(
     attempt_id: Optional[str] = Query(None, description="Optional attempt ID filter"),
     level: Optional[str] = Query(None, description="Optional log level filter (INFO, WARN, ERROR)"),
     limit: int = Query(50, ge=1, le=200, description="Max logs to return"),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: Optional[AuthenticatedUser] = Depends(get_optional_user),
     session: AsyncSession = Depends(get_db)
 ) -> List[dict]:
-    owner_filter = None if current_user.is_service_role else current_user.id
+    owner_filter = None if (not current_user or current_user.is_service_role or current_user.is_admin) else current_user.id
     job = await JobRepository.get_by_id(session, job_id, owner_id=owner_filter)
     if not job:
         raise HTTPException(
@@ -323,10 +323,10 @@ async def investigate_job(
 )
 async def get_job_investigations(
     job_id: uuid.UUID,
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: Optional[AuthenticatedUser] = Depends(get_optional_user),
     session: AsyncSession = Depends(get_db)
 ) -> List[dict]:
-    owner_filter = None if current_user.is_service_role else current_user.id
+    owner_filter = None if (not current_user or current_user.is_service_role or current_user.is_admin) else current_user.id
     job = await JobRepository.get_by_id(session, job_id, owner_id=owner_filter)
     if not job:
         raise HTTPException(
