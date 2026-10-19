@@ -261,6 +261,33 @@ class JobRepository:
         return attempt
 
     @staticmethod
+    async def update_attempt(
+        session: AsyncSession,
+        attempt_id: uuid.UUID,
+        status: AttemptStatus,
+        finished_at: datetime,
+        duration_ms: int,
+        error_type: Optional[str] = None,
+        error_message: Optional[str] = None,
+        result: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """Updates the status and outcome of an existing execution attempt."""
+        stmt = (
+            update(JobAttempt)
+            .where(JobAttempt.id == attempt_id)
+            .values(
+                status=status.value,
+                finished_at=finished_at,
+                duration_ms=duration_ms,
+                error_type=error_type,
+                error_message=error_message,
+                result=result
+            )
+        )
+        res = await session.execute(stmt)
+        return res.rowcount > 0
+
+    @staticmethod
     async def complete_job(
         session: AsyncSession,
         job_id: uuid.UUID,
