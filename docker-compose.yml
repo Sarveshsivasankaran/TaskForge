@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  # TaskForge FastAPI Backend Service
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: taskforge-api
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=development
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - SUPABASE_URL=${SUPABASE_URL:-http://supabase-kong:8000}
+      - SUPABASE_DB_URL=${SUPABASE_DB_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/taskforge}
+      - QUEUE_NAME=${QUEUE_NAME:-taskforge_jobs}
+      - ELASTICSEARCH_URL=${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - taskforge-network
+
+  # TaskForge Asynchronous Background Worker
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: taskforge-worker
+    command: python -m app.workers.runner
+    environment:
+      - APP_ENV=development
+      - WORKER_ID=docker-worker-1
+      - WORKER_CONCURRENCY=4
+      - SUPABASE_DB_URL=${SUPABASE_DB_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/taskforge}
+      - QUEUE_NAME=${QUEUE_NAME:-taskforge_jobs}
+      - ELASTICSEARCH_URL=${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - taskforge-network
+
+  # TaskForge React Frontend Dashboard
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: taskforge-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+    networks:
+      - taskforge-network
+
+  # Local Development PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: taskforge-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=taskforge
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d taskforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taskforge-network
+
+  # Optional Local Elasticsearch Node
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: taskforge-elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - taskforge-network
+
+volumes:
+  postgres_data:
+  es_data:
+
+networks:
+  taskforge-network:
+    driver: bridge
