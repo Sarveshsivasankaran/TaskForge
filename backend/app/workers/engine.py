@@ -119,6 +119,7 @@ class WorkerEngine:
             job_id=str(job_id),
             attempt_id=str(attempt_id),
             worker_id=self.worker_id,
+            job_type=job.job_type,
             event_type="JOB_ATTEMPT_STARTED"
         )
 
@@ -204,6 +205,7 @@ class WorkerEngine:
                     job_id=str(job_id),
                     attempt_id=str(attempt_id),
                     worker_id=self.worker_id,
+                    job_type=job.job_type,
                     event_type="JOB_ATTEMPT_SUCCEEDED",
                     duration_ms=duration_ms
                 )
@@ -245,6 +247,7 @@ class WorkerEngine:
                     job_id=str(job_id),
                     attempt_id=str(attempt_id),
                     worker_id=self.worker_id,
+                    job_type=job.job_type,
                     event_type="JOB_ATTEMPT_RETRYING" if should_retry else "JOB_ATTEMPT_DEAD_LETTER",
                     duration_ms=duration_ms,
                     error_type=error_info["error_type"]

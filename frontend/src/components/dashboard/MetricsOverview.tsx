@@ -1,5 +1,6 @@
-import React from 'react';
-import type { MetricsSummary } from '../../types/job';
+import React, { useState, useEffect } from 'react';
+import type { MetricsSummary, FailurePatterns } from '../../types/job';
+import { fetchFailurePatterns } from '../../lib/api';
 import { 
   Activity, 
   CheckCircle2, 
@@ -8,7 +9,10 @@ import {
   Zap, 
   RefreshCw,
   BarChart3,
-  PieChart as PieIcon
+  PieChart as PieIcon,
+  ShieldAlert,
+  Server,
+  Layers
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -48,6 +52,26 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
   autoRefresh,
   onToggleAutoRefresh,
 }) => {
+  const [failurePatterns, setFailurePatterns] = useState<FailurePatterns | null>(null);
+
+  useEffect(() => {
+    loadFailurePatterns();
+  }, []);
+
+  const loadFailurePatterns = async () => {
+    try {
+      const data = await fetchFailurePatterns();
+      setFailurePatterns(data);
+    } catch {
+      // Graceful fallback
+    }
+  };
+
+  const handleRefreshAll = () => {
+    onRefresh();
+    loadFailurePatterns();
+  };
+
   if (!metrics) {
     return (
       <div className="card-surface p-6 animate-pulse">
@@ -61,15 +85,27 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
     );
   }
 
-  const { total_jobs, status_counts, avg_duration_seconds, failure_rate_percent, by_job_type } = metrics;
-  const queuedCount = status_counts.queued || 0;
-  const runningCount = status_counts.running || 0;
-  const succeededCount = status_counts.succeeded || 0;
-  const dlqCount = status_counts.dead_letter || 0;
-  const failedCount = status_counts.failed || 0;
+  const statusCounts = metrics.status_counts || {
+    queued: metrics.queued_jobs || 0,
+    running: metrics.running_jobs || 0,
+    succeeded: metrics.succeeded_jobs || 0,
+    failed: metrics.failed_jobs || 0,
+    dead_letter: metrics.dead_letter_jobs || 0,
+    retry_wait: metrics.retry_wait_jobs || 0,
+    cancelled: metrics.cancelled_jobs || 0,
+  };
+  const totalJobs = metrics.total_jobs || 0;
+  const queuedCount = statusCounts.queued || 0;
+  const runningCount = statusCounts.running || 0;
+  const succeededCount = statusCounts.succeeded || 0;
+  const dlqCount = statusCounts.dead_letter || 0;
+  const failedCount = statusCounts.failed || 0;
+  const avgDuration = metrics.avg_duration_seconds ?? (metrics.avg_duration_ms ? metrics.avg_duration_ms / 1000 : 0);
+  const failureRate = metrics.failure_rate_percent || 0;
+  const byJobType = metrics.by_job_type || {};
 
   // Prepare Pie Chart Data
-  const pieData = Object.entries(status_counts)
+  const pieData = Object.entries(statusCounts)
     .filter(([, count]) => count > 0)
     .map(([status, count]) => ({
       name: status.replace('_', ' ').toUpperCase(),
@@ -79,7 +115,7 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
     }));
 
   // Prepare Bar Chart Data
-  const barData = Object.entries(by_job_type).map(([type, count]) => ({
+  const barData = Object.entries(byJobType).map(([type, count]) => ({
     name: type.replace('_', ' '),
     count
   }));
@@ -91,10 +127,10 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Activity className="w-5 h-5 text-indigo-600" />
-            Cluster Health & Real-time Metrics
+            Cluster Metrics
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Synchronized telemetry across worker leases, transactional queues, and Elasticsearch streams
+            Real-time throughput, status breakdown, and execution latencies.
           </p>
         </div>
 
@@ -110,7 +146,7 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
           </label>
 
           <button
-            onClick={onRefresh}
+            onClick={handleRefreshAll}
             disabled={loading}
             className="p-2 text-purple-700 hover:bg-lavender-100 rounded-lg transition-colors border border-lavender-200 shadow-sm"
             title="Refresh Metrics"
@@ -128,7 +164,7 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
             <span className="text-xs font-semibold uppercase tracking-wider">Total Ingested</span>
             <Activity className="w-4 h-4 text-indigo-500" />
           </div>
-          <div className="text-2xl font-bold text-slate-900">{total_jobs.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-slate-900">{totalJobs.toLocaleString()}</div>
           <div className="text-[11px] text-slate-400 mt-1">Across all tenants</div>
         </div>
 
@@ -154,7 +190,7 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
           </div>
           <div className="text-2xl font-bold text-emerald-700">{succeededCount.toLocaleString()}</div>
           <div className="text-[11px] text-emerald-600 mt-1 font-medium">
-            {total_jobs > 0 ? ((succeededCount / total_jobs) * 100).toFixed(1) : 0}% success rate
+            {totalJobs > 0 ? ((succeededCount / totalJobs) * 100).toFixed(1) : 0}% success rate
           </div>
         </div>
 
@@ -176,7 +212,7 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
             <span className="text-xs font-semibold uppercase tracking-wider">Failure Rate</span>
             <Zap className="w-4 h-4 text-rose-500" />
           </div>
-          <div className="text-2xl font-bold text-rose-700">{failure_rate_percent.toFixed(1)}%</div>
+          <div className="text-2xl font-bold text-rose-700">{failureRate.toFixed(1)}%</div>
           <div className="text-[11px] text-slate-500 mt-1">
             {failedCount + dlqCount} terminal failures
           </div>
@@ -189,7 +225,7 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-2xl font-bold text-slate-900">
-            {avg_duration_seconds > 0 ? `${avg_duration_seconds.toFixed(2)}s` : '< 1s'}
+            {avgDuration > 0 ? `${avgDuration.toFixed(2)}s` : '< 1s'}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">Lease to completion</div>
         </div>
@@ -202,9 +238,9 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <PieIcon className="w-4 h-4 text-purple-600" />
-              Job Status Distribution
+              Status Breakdown
             </h3>
-            <span className="text-xs text-slate-400">Real-time state partition</span>
+            <span className="text-xs text-slate-400">Current partition</span>
           </div>
 
           <div className="h-56 w-full flex items-center justify-center">
@@ -292,6 +328,89 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Elasticsearch Observability & Failure Pattern Analytics */}
+      {failurePatterns && (
+        <div className="card-surface p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <ShieldAlert className="w-5 h-5 text-purple-700" />
+              <h3 className="text-sm font-bold text-slate-900">
+                Observability & Failure Pattern Analysis
+              </h3>
+            </div>
+            <span className="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-medium bg-lavender-100 text-purple-700 border border-purple-200">
+              Telemetry Source: {failurePatterns.source}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Top Error Patterns */}
+            <div className="p-4 bg-purple-50/50 rounded-xl border border-purple-100 space-y-2">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-purple-600" />
+                Top Error Categories
+              </span>
+              {failurePatterns.top_error_patterns.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No errors captured in telemetry window</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {failurePatterns.top_error_patterns.map((ep, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs bg-white p-2 rounded border border-purple-100">
+                      <span className="font-mono text-purple-900 font-semibold">{ep.error_type}</span>
+                      <span className="font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded text-[11px]">{ep.count}x</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Retries & Timeouts */}
+            <div className="p-4 bg-lavender-50/50 rounded-xl border border-purple-100 space-y-2">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Server className="w-3.5 h-3.5 text-indigo-600" />
+                Resilience & Recovery Events
+              </span>
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-purple-100 text-xs">
+                  <span className="text-slate-600">Retries Scheduled:</span>
+                  <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                    {failurePatterns.total_retries_observed}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-purple-100 text-xs">
+                  <span className="text-slate-600">Timeout Interventions:</span>
+                  <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded">
+                    {failurePatterns.total_timeouts_observed}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Execution Duration Statistics */}
+            <div className="p-4 bg-indigo-50/40 rounded-xl border border-indigo-100 space-y-2">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                Aggregated Execution Durations
+              </span>
+              <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                <div className="bg-white p-2.5 rounded-lg border border-indigo-100">
+                  <span className="text-[10px] text-slate-400 block uppercase">Min</span>
+                  <span className="text-xs font-bold text-slate-800">{failurePatterns.duration_metrics.min_ms}ms</span>
+                </div>
+                <div className="bg-white p-2.5 rounded-lg border border-indigo-100">
+                  <span className="text-[10px] text-slate-400 block uppercase">Avg</span>
+                  <span className="text-xs font-bold text-indigo-700">{failurePatterns.duration_metrics.avg_ms}ms</span>
+                </div>
+                <div className="bg-white p-2.5 rounded-lg border border-indigo-100">
+                  <span className="text-[10px] text-slate-400 block uppercase">Max</span>
+                  <span className="text-xs font-bold text-slate-800">{failurePatterns.duration_metrics.max_ms}ms</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

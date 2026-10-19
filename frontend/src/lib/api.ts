@@ -8,7 +8,7 @@ import type {
 } from '../types/job';
 
 const getAuthToken = (): string | null => {
-  return localStorage.getItem('taskforge_auth_token');
+  return localStorage.getItem('taskforge_token') || localStorage.getItem('taskforge_auth_token');
 };
 
 const getHeaders = (customHeaders: Record<string, string> = {}): HeadersInit => {
@@ -180,3 +180,85 @@ export async function fetchJobInvestigations(jobId: string): Promise<StoredInves
   }
   return res.json();
 }
+
+export async function fetchJobTimeline(jobId: string): Promise<import('../types/job').TimelineItem[]> {
+  const res = await fetch(`/api/jobs/${jobId}/timeline`, {
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch timeline: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchFailurePatterns(): Promise<import('../types/job').FailurePatterns> {
+  const res = await fetch('/api/metrics/failure-patterns', {
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch failure patterns: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export interface ClusterStatus {
+  status: string;
+  cluster_mode: string;
+  authorized_admin: string;
+  caller_id: string;
+  total_jobs: number;
+  distinct_tenants: number;
+  pending_outbox: number;
+  dead_letter_jobs: number;
+  running_jobs: number;
+  queued_jobs: number;
+  succeeded_jobs: number;
+  status_distribution: Record<string, number>;
+}
+
+export async function fetchClusterStatus(): Promise<ClusterStatus> {
+  const res = await fetch('/api/v1/admin/cluster-status', {
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch cluster status: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function triggerLeaseRecovery(): Promise<{ status: string; recovered_count: number; message: string }> {
+  const res = await fetch('/api/v1/admin/recover-leases', {
+    method: 'POST',
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Lease recovery failed: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function triggerOutboxSweep(): Promise<{ status: string; dispatched_count: number; message: string }> {
+  const res = await fetch('/api/v1/admin/sweep-outbox', {
+    method: 'POST',
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Outbox sweep failed: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function verifyAdminAccess(): Promise<{ status: string; message: string; caller_id: string }> {
+  const res = await fetch('/api/v1/auth/admin-only', {
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Admin verification failed: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+

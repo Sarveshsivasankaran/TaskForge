@@ -22,13 +22,15 @@ import type {
   JobAttempt, 
   JobEvent, 
   JobLog, 
-  StoredInvestigation 
+  StoredInvestigation,
+  TimelineItem 
 } from '../../types/job';
 import { 
   fetchJobAttempts, 
   fetchJobEvents, 
   fetchJobLogs, 
   fetchJobInvestigations, 
+  fetchJobTimeline,
   investigateJob, 
   retryJob, 
   cancelJob 
@@ -57,6 +59,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
   const [attempts, setAttempts] = useState<JobAttempt[]>([]);
   const [events, setEvents] = useState<JobEvent[]>([]);
   const [logs, setLogs] = useState<JobLog[]>([]);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [investigations, setInvestigations] = useState<StoredInvestigation[]>([]);
   
   // Loading & action states
@@ -77,16 +80,18 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
     setLoading(true);
     setActionError(null);
     try {
-      const [attemptsData, eventsData, logsData, invData] = await Promise.all([
+      const [attemptsData, eventsData, logsData, invData, timelineData] = await Promise.all([
         fetchJobAttempts(jobId).catch(() => []),
         fetchJobEvents(jobId).catch(() => []),
         fetchJobLogs(jobId).catch(() => []),
         fetchJobInvestigations(jobId).catch(() => []),
+        fetchJobTimeline(jobId).catch(() => []),
       ]);
       setAttempts(attemptsData);
       setEvents(eventsData);
       setLogs(logsData);
       setInvestigations(invData);
+      setTimeline(timelineData);
     } catch {
       // Graceful fallback
     } finally {
@@ -287,8 +292,8 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-            <span>AI Failure Investigation</span>
+            <Brain className="w-3.5 h-3.5 text-purple-600" />
+            <span>Root Cause Analysis</span>
             {investigations.length > 0 && (
               <span className="text-[10px] px-1.5 py-0.2 bg-purple-100 text-purple-700 rounded-full font-bold">
                 {investigations.length}
@@ -336,6 +341,55 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                   <pre className="text-xs text-rose-900 font-mono whitespace-pre-wrap bg-white/70 p-2.5 rounded border border-rose-100">
                     {job.error_message}
                   </pre>
+                </div>
+              )}
+
+              {/* Unified Execution Timeline */}
+              {timeline.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <ListTree className="w-3.5 h-3.5 text-indigo-600" />
+                    Unified Execution Timeline
+                  </h4>
+                  <div className="relative pl-6 space-y-3 border-l-2 border-indigo-100 ml-2">
+                    {timeline.map((item, idx) => (
+                      <div key={idx} className="relative group">
+                        {/* Dot indicator */}
+                        <div className={`absolute -left-[31px] top-1.5 h-3.5 w-3.5 rounded-full border-2 bg-white ${
+                          item.category.includes('SUCCEEDED')
+                            ? 'border-emerald-500'
+                            : item.category.includes('FAILED') || item.category.includes('DEAD_LETTER')
+                            ? 'border-rose-500'
+                            : item.category.includes('RETRY')
+                            ? 'border-amber-500'
+                            : 'border-indigo-500'
+                        }`} />
+                        <div className="p-3 rounded-xl border border-purple-100 bg-white shadow-sm hover:border-purple-200 transition-colors">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-slate-800">{item.title}</span>
+                            <span className="text-[11px] text-slate-400 font-mono">
+                              {item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : ''}
+                            </span>
+                          </div>
+                          {item.details && Object.keys(item.details).length > 0 && (
+                            <div className="mt-1.5 text-[11px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100 font-mono">
+                              {Boolean(item.details.error_message) && (
+                                <div className="text-rose-600 font-semibold mb-0.5">
+                                  {String(item.details.error_message)}
+                                </div>
+                              )}
+                              {item.details.duration_ms !== undefined && item.details.duration_ms !== null && (
+                                <div>Duration: {String(item.details.duration_ms)}ms</div>
+                              )}
+                              {Boolean(item.details.status) && (
+                                <div>Status: {String(item.details.status)}</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -543,7 +597,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
             </div>
           )}
 
-          {/* TAB 4: AI FAILURE INVESTIGATION */}
+          {/* TAB 4: ROOT CAUSE ANALYSIS */}
           {activeTab === 'ai' && (
             <div className="space-y-6">
               {!latestInvestigation ? (
@@ -552,9 +606,9 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                     <Brain className="w-6 h-6" />
                   </div>
                   <div className="max-w-md mx-auto space-y-1">
-                    <h4 className="text-sm font-bold text-slate-900">No AI Investigation Report Generated</h4>
+                    <h4 className="text-sm font-bold text-slate-900">No Root Cause Report Generated</h4>
                     <p className="text-xs text-slate-500">
-                      TaskForge AI autonomously inspects correlated log records, database state changes, and worker stack traces to pinpoint the exact failure cause.
+                      Diagnose failure reasons using correlated execution attempts and error traces.
                     </p>
                   </div>
                   <button
@@ -563,7 +617,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                     className="btn-primary text-xs py-2 px-4 shadow-md inline-flex items-center space-x-1.5"
                   >
                     <Sparkles className={`w-4 h-4 ${isInvestigating ? 'animate-spin' : ''}`} />
-                    <span>{isInvestigating ? 'Analyzing Failure Evidence...' : 'Initiate AI Investigation'}</span>
+                    <span>{isInvestigating ? 'Analyzing Traces...' : 'Run Root Cause Analysis'}</span>
                   </button>
                 </div>
               ) : (
@@ -573,14 +627,22 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <Brain className="w-5 h-5 text-purple-700" />
-                        <h4 className="text-sm font-bold text-purple-950">AI Root-Cause Diagnosis</h4>
+                        <h4 className="text-sm font-bold text-purple-950">Root Cause Analysis</h4>
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                          {latestInvestigation.report.failure_category}
+                          {latestInvestigation.provider || 'NVIDIA NIM'}
                         </span>
                         <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          {(latestInvestigation.confidence_score * 100).toFixed(0)}% Confidence
+                          {latestInvestigation.confidence_score !== undefined
+                            ? `${(latestInvestigation.confidence_score * 100).toFixed(0)}% Confidence`
+                            : latestInvestigation.report.confidence_level === 'high'
+                            ? 'High Confidence'
+                            : latestInvestigation.report.confidence_level === 'insufficient_evidence'
+                            ? 'Insufficient Evidence'
+                            : latestInvestigation.report.confidence_level === 'low'
+                            ? 'Low Confidence'
+                            : 'Medium Confidence'}
                         </span>
                       </div>
                     </div>
@@ -602,7 +664,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                   <div className="space-y-2">
                     <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                       <Terminal className="w-3.5 h-3.5 text-indigo-600" />
-                      Supporting Log & Execution Evidence
+                      Supporting Evidence
                     </h5>
                     <ul className="space-y-2">
                       {latestInvestigation.report.supporting_evidence.map((ev, i) => (
@@ -617,11 +679,40 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                     </ul>
                   </div>
 
+                  {/* Alternative Explanations */}
+                  {latestInvestigation.report.alternative_explanations && latestInvestigation.report.alternative_explanations.length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <HelpCircle className="w-3.5 h-3.5 text-amber-600" />
+                        Alternative Causes
+                      </h5>
+                      <div className="space-y-1.5">
+                        {latestInvestigation.report.alternative_explanations.map((alt, i) => (
+                          <div key={i} className="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200 text-xs text-amber-950 flex items-start space-x-2">
+                            <span className="text-amber-600 font-bold">•</span>
+                            <span>{alt}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Missing Evidence / Uncertainty Notes */}
+                  {latestInvestigation.report.uncertainty_or_missing_evidence && (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-1">
+                      <div className="font-semibold text-slate-700 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Telemetry Limits:</span>
+                      </div>
+                      <p>{latestInvestigation.report.uncertainty_or_missing_evidence}</p>
+                    </div>
+                  )}
+
                   {/* Actionable Next Steps */}
                   <div className="space-y-2">
                     <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                       <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      Recommended Operator Remediation Steps
+                      Remediation Steps
                     </h5>
                     <div className="space-y-2">
                       {latestInvestigation.report.recommended_next_steps.map((step, i) => (
@@ -646,7 +737,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({
                       className="text-xs text-purple-700 hover:text-purple-900 font-semibold flex items-center space-x-1"
                     >
                       <RotateCw className={`w-3.5 h-3.5 ${isInvestigating ? 'animate-spin' : ''}`} />
-                      <span>Re-analyze with Latest Logs</span>
+                      <span>Re-run Analysis</span>
                     </button>
                   </div>
                 </div>

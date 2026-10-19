@@ -24,7 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Check saved session in localStorage
-    const savedToken = localStorage.getItem('taskforge_token');
+    const savedToken = localStorage.getItem('taskforge_token') || localStorage.getItem('taskforge_auth_token');
     const savedUser = localStorage.getItem('taskforge_user');
     if (savedToken && savedUser) {
       try {
@@ -32,6 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(JSON.parse(savedUser));
       } catch {
         localStorage.removeItem('taskforge_token');
+        localStorage.removeItem('taskforge_auth_token');
         localStorage.removeItem('taskforge_user');
       }
     }
@@ -177,6 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(demoUser);
       setToken(tokenValue);
       localStorage.setItem('taskforge_token', tokenValue);
+      localStorage.setItem('taskforge_auth_token', tokenValue);
       localStorage.setItem('taskforge_user', JSON.stringify(demoUser));
     } finally {
       setLoading(false);
@@ -190,6 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setToken(null);
     localStorage.removeItem('taskforge_token');
+    localStorage.removeItem('taskforge_auth_token');
     localStorage.removeItem('taskforge_user');
   };
 

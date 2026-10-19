@@ -1,6 +1,6 @@
 """Schemas for aggregate platform metrics."""
 
-from typing import Dict
+from typing import Dict, Optional
 from pydantic import BaseModel, Field
 
 
@@ -14,7 +14,9 @@ class MetricsSummaryResponse(BaseModel):
     dead_letter_jobs: int = Field(default=0, description="Jobs in dead letter status")
     retry_wait_jobs: int = Field(default=0, description="Jobs in backoff retry wait")
     cancelled_jobs: int = Field(default=0, description="Jobs cancelled by user")
+    status_counts: Dict[str, int] = Field(default_factory=dict, description="Dictionary map of status counts")
     total_attempts: int = Field(default=0, description="Total execution attempts recorded")
     avg_duration_ms: float = Field(default=0.0, description="Average execution duration in milliseconds")
+    avg_duration_seconds: float = Field(default=0.0, description="Average execution duration in seconds")
     failure_rate_percent: float = Field(default=0.0, description="Percentage of finalized jobs that failed")
     by_job_type: Dict[str, int] = Field(default_factory=dict, description="Job counts broken down by type")

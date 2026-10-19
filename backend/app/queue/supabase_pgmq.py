@@ -41,7 +41,7 @@ class SupabasePGMQQueueClient(BaseQueueClient):
         """Sends message to pgmq queue."""
         async with self.session_factory() as session:
             msg_json = json.dumps(message)
-            stmt = text("SELECT pgmq.send(:queue_name, :msg_json::jsonb, :delay);")
+            stmt = text("SELECT pgmq.send(:queue_name, CAST(:msg_json AS jsonb), :delay);")
             res = await session.execute(
                 stmt,
                 {"queue_name": queue_name, "msg_json": msg_json, "delay": delay_seconds}

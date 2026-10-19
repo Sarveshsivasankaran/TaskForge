@@ -78,9 +78,11 @@ class Settings(BaseSettings):
     elasticsearch_enabled: bool = Field(default=False, description="Enable Elasticsearch export")
 
     # AI Failure Investigator
-    llm_provider: str = Field(default="mock", description="LLM provider: mock, openai, anthropic, gemini")
-    llm_model: str = Field(default="gpt-4o-mini", description="LLM model identifier")
+    llm_provider: str = Field(default="nvidia", description="LLM provider: nvidia, openai, anthropic, gemini, mock")
+    llm_base_url: str = Field(default="https://integrate.api.nvidia.com/v1", description="LLM base URL")
+    llm_model: str = Field(default="openai/gpt-oss-20b", description="LLM model identifier")
     llm_api_key: str = Field(default="", description="LLM API key")
+
 
 
 settings = Settings()

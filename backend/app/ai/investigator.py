@@ -120,49 +120,53 @@ class FailureInvestigatorService:
     ) -> JobInvestigation:
         """
         Executes bounded, read-only AI investigation and persists report in database.
+        Uses CrewAI multi-agent investigation workflow with grounded engine fallback.
         """
-        # 1. Sanitize untrusted inputs
+        # 1. Sanitize untrusted inputs (payload and logs)
         clean_payload = sanitize_payload(job.payload)
         clean_logs = [
             {**log, "message": sanitize_text(log.get("message", ""))}
             for log in logs
         ]
 
-        # 2. Generate analysis (deterministic mock provider or LLM)
-        report: InvestigationReport
-        provider_name = settings.llm_provider
+        # 2. Execute LLM investigation: NVIDIA NIM -> CrewAI -> Grounded Engine Fallback
+        from app.ai.crewai_investigator import CrewAIFailureInvestigator
 
-        if provider_name == "openai" and settings.llm_api_key:
-            try:
-                from openai import AsyncOpenAI
-                client = AsyncOpenAI(api_key=settings.llm_api_key)
-                prompt = (
-                    "You are a Senior Site Reliability Engineer performing root cause analysis for an asynchronous job failure. "
-                    "Analyze the provided execution evidence and output a strictly valid JSON object matching the InvestigationReport schema.\n\n"
-                    f"Job Type: {job.job_type}\n"
-                    f"Current Status: {job.status}\n"
-                    f"Attempts: {len(attempts)}\n"
-                    f"Last Error: {job.last_error}\n"
-                    f"Payload: {json.dumps(clean_payload)}\n"
-                    f"Recent Logs:\n{json.dumps(clean_logs)}\n\n"
-                    "Output JSON ONLY with keys: summary, probable_root_cause, supporting_evidence, "
-                    "evidence_references, alternative_explanations, recommended_next_steps, confidence_level."
-                )
-                response = await client.chat.completions.create(
-                    model=settings.llm_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    response_format={"type": "json_object"},
-                    timeout=20.0
-                )
-                raw_json = response.choices[0].message.content or "{}"
-                report = InvestigationReport.model_validate_json(raw_json)
-            except Exception as e:
-                logger.warning(f"LLM API call failed; falling back to grounded deterministic investigator: {e}")
-                report = cls.generate_grounded_analysis(job, attempts, clean_logs)
-                provider_name = "mock-fallback"
-        else:
-            report = cls.generate_grounded_analysis(job, attempts, clean_logs)
-            provider_name = "mock"
+        report = None
+        provider_name = "grounded-evidence-engine"
+
+        # Try NVIDIA NIM LLM endpoint first if configured
+        if settings.llm_provider in ("nvidia", "openai") and settings.llm_api_key:
+            report = CrewAIFailureInvestigator.run_nvidia_investigation(
+                job=job,
+                attempts=attempts,
+                clean_logs=clean_logs,
+                clean_payload=clean_payload
+            )
+            if report:
+                provider_name = f"nvidia-nim ({settings.llm_model})"
+
+        # Try CrewAI multi-agent workflow
+        if not report:
+            report = CrewAIFailureInvestigator.run_crewai_investigation(
+                job=job,
+                attempts=attempts,
+                logs=logs,
+                clean_payload=clean_payload,
+                clean_logs=clean_logs
+            )
+            if report:
+                provider_name = "crewai"
+
+        # Deterministic grounded evidence fallback
+        if not report:
+            report = CrewAIFailureInvestigator.generate_grounded_investigation(
+                job=job,
+                attempts=attempts,
+                clean_logs=clean_logs
+            )
+            provider_name = "grounded-evidence-engine"
+
 
         # 3. Persist investigation report to database
         investigation = JobInvestigation(

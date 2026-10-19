@@ -30,6 +30,7 @@ interface JobExplorerProps {
   onOpenSubmitModal: () => void;
   loading: boolean;
   onJobUpdated: (job: Job) => void;
+  currentUser?: import('../../types/auth').User | null;
 }
 
 const STATUS_TABS: { label: string; value: string }[] = [
@@ -59,6 +60,7 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({
   onOpenSubmitModal,
   loading,
   onJobUpdated,
+  currentUser,
 }) => {
   const [actionInProgress, setActionInProgress] = useState<Record<string, boolean>>({});
 
@@ -95,14 +97,26 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({
       {/* Header & Main Actions */}
       <div className="p-6 border-b border-purple-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <span>Distributed Job Explorer</span>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-lavender-100 text-purple-800 border border-lavender-200">
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-xl font-bold text-slate-900">
+              {currentUser?.isAdmin ? 'Cluster-Wide Job Explorer' : 'Tenant Workload Explorer'}
+            </h2>
+            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${
+              currentUser?.isAdmin 
+                ? 'bg-purple-100 text-purple-800 border-purple-200' 
+                : 'bg-indigo-100 text-indigo-800 border-indigo-200'
+            }`}>
+              {currentUser?.isAdmin ? 'Cluster Admin' : 'Tenant Scoped'}
+            </span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-lavender-100 text-purple-800 border border-lavender-200">
               {totalJobs} Total
             </span>
-          </h2>
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Real-time inspection of background execution state, lease concurrency, and worker attempts
+            {currentUser?.isAdmin
+              ? 'Real-time execution status and lease state across all tenant partitions.'
+              : `Workloads submitted by your tenant account (${currentUser?.email || 'operator@taskforge.dev'}).`
+            }
           </p>
         </div>
 
@@ -177,6 +191,7 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({
               <th className="py-3 px-4">Job ID</th>
               <th className="py-3 px-4">Type</th>
               <th className="py-3 px-4">Status</th>
+              {currentUser?.isAdmin && <th className="py-3 px-4">Tenant Partition</th>}
               <th className="py-3 px-4">Attempts</th>
               <th className="py-3 px-4">Submitted At</th>
               <th className="py-3 px-4">Worker Owner</th>
@@ -186,14 +201,14 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({
           <tbody className="divide-y divide-purple-50 text-slate-700">
             {loading && jobs.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-12 text-center text-slate-400">
+                <td colSpan={currentUser?.isAdmin ? 8 : 7} className="py-12 text-center text-slate-400">
                   <RotateCw className="w-6 h-6 animate-spin mx-auto text-indigo-600 mb-2" />
                   <span>Loading jobs repository...</span>
                 </td>
               </tr>
             ) : jobs.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-12 text-center text-slate-400 space-y-3">
+                <td colSpan={currentUser?.isAdmin ? 8 : 7} className="py-12 text-center text-slate-400 space-y-3">
                   <Inbox className="w-10 h-10 mx-auto text-slate-300" />
                   <p className="text-xs">No jobs found matching the selected criteria.</p>
                   <button
@@ -234,6 +249,15 @@ export const JobExplorer: React.FC<JobExplorerProps> = ({
                     <td className="py-3 px-4">
                       <StatusBadge status={job.status} size="sm" />
                     </td>
+
+                    {/* Tenant Partition (Cluster Admin Only) */}
+                    {currentUser?.isAdmin && (
+                      <td className="py-3 px-4 font-mono text-[11px]">
+                        <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                          {job.owner_id ? `tenant-${job.owner_id.substring(0, 8)}` : 'default-tenant'}
+                        </span>
+                      </td>
+                    )}
 
                     {/* Attempts */}
                     <td className="py-3 px-4 text-slate-600">

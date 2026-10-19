@@ -1,15 +1,17 @@
-"""Platform Metrics aggregation API."""
+"""Platform Metrics and Elasticsearch Observability aggregation API."""
 
+from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import AuthenticatedUser, get_optional_user
-from app.models.enums import JobStatus, AttemptStatus
+from app.models.enums import JobStatus
 from app.models.job import Job
 from app.models.attempt import JobAttempt
 from app.schemas.metrics import MetricsSummaryResponse
+from app.observability.client import es_observability
 
 router = APIRouter(prefix="/metrics", tags=["Metrics"])
 
@@ -24,8 +26,9 @@ async def get_metrics_summary(
     current_user: Optional[AuthenticatedUser] = Depends(get_optional_user),
     session: AsyncSession = Depends(get_db)
 ) -> MetricsSummaryResponse:
-    # Service role or public views global cluster metrics; authenticated non-admin users view their tenant metrics
-    where_clause = True if (not current_user or current_user.is_service_role or current_user.is_admin) else (Job.owner_id == current_user.id)
+    # Service role, admin, or public viewer views global cluster metrics; authenticated tenant views their own
+    is_global_view = not current_user or current_user.is_service_role or current_user.is_admin
+    where_clause = True if is_global_view else (Job.owner_id == current_user.id)
 
     # 1. Status counts
     status_query = (
@@ -55,9 +58,7 @@ async def get_metrics_summary(
     by_type = {r[0]: r[1] for r in type_rows}
 
     # 3. Attempt stats and average duration
-    attempt_where = True
-    if not current_user.is_service_role:
-        # Join to filter by owner_id
+    if not is_global_view and current_user:
         attempt_query = (
             select(
                 func.count(JobAttempt.id),
@@ -89,8 +90,23 @@ async def get_metrics_summary(
         dead_letter_jobs=dead_letter,
         retry_wait_jobs=retry_wait,
         cancelled_jobs=cancelled,
+        status_counts=counts,
         total_attempts=total_attempts,
         avg_duration_ms=avg_duration,
+        avg_duration_seconds=round(avg_duration / 1000.0, 2),
         failure_rate_percent=failure_rate,
         by_job_type=by_type
     )
+
+
+@router.get(
+    "/failure-patterns",
+    summary="Get failure pattern analytics via Elasticsearch aggregations",
+    description="Aggregates failure patterns, retry frequencies, timeout counts, and execution durations."
+)
+async def get_failure_patterns(
+    current_user: Optional[AuthenticatedUser] = Depends(get_optional_user)
+) -> Dict[str, Any]:
+    """Exposes Elasticsearch or ring-buffer aggregation telemetry for failure-pattern analysis."""
+    patterns = await es_observability.get_failure_patterns()
+    return patterns

@@ -29,6 +29,7 @@ class AuthenticatedUser(BaseModel):
         app_metadata = self.raw_claims.get("app_metadata", {})
         return (
             self.is_service_role
+            or self.role == "admin"
             or app_metadata.get("role") == "admin"
             or app_metadata.get("claims_admin") is True
         )
