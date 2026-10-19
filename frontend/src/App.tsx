@@ -8,17 +8,25 @@ import {
   Terminal, 
   CheckCircle2, 
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  User,
+  LogOut,
+  Shield
 } from 'lucide-react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthModal } from './components/auth/AuthModal';
 
 interface HealthStatus {
   status: string;
   app_name: string;
   environment: string;
+  version?: string;
   timestamp: string;
 }
 
-export function App() {
+function DashboardContent() {
+  const { user, token, signOut } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +55,7 @@ export function App() {
   return (
     <div className="min-h-screen bg-lavender-50 text-slate-800 flex flex-col">
       {/* Top Navigation */}
-      <header className="bg-white border-b border-purple-100 shadow-sm sticky top-0 z-50">
+      <header className="bg-white border-b border-purple-100 shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md">
@@ -58,31 +66,61 @@ export function App() {
                 TaskForge
               </span>
               <span className="hidden sm:inline-block ml-3 px-2.5 py-0.5 rounded-full text-xs font-medium bg-lavender-100 text-purple-800 border border-lavender-200">
-                Phase 1: Foundation
+                Phase 3: Auth & Security
               </span>
             </div>
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-xs">
-              <span className="text-slate-500">API Status:</span>
+            {/* API Status Badge */}
+            <div className="hidden sm:flex items-center space-x-2 text-xs">
+              <span className="text-slate-500">API:</span>
               {loading ? (
                 <span className="badge bg-amber-100 text-amber-800 animate-pulse">Checking...</span>
               ) : error ? (
-                <span className="badge bg-rose-100 text-rose-800 flex items-center gap-1">
-                  Offline
-                </span>
+                <span className="badge bg-rose-100 text-rose-800">Offline</span>
               ) : (
                 <span className="badge bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Online ({health?.environment})
+                  <CheckCircle2 className="w-3 h-3" /> Online v{health?.version || '0.1.0'}
                 </span>
               )}
             </div>
+
+            {/* User Profile or Sign-In Trigger */}
+            {user ? (
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 bg-lavender-50 border border-lavender-200 rounded-lg px-3 py-1.5 text-xs">
+                  <div className="h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                    {user.isAdmin ? <Shield className="w-3 h-3" /> : <User className="w-3 h-3" />}
+                  </div>
+                  <div className="text-left hidden md:block">
+                    <p className="font-semibold text-slate-800 leading-tight">{user.email}</p>
+                    <p className="text-[10px] text-purple-600 font-medium capitalize">{user.role}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={signOut}
+                  className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                className="btn-primary text-xs py-1.5 px-3 flex items-center space-x-1"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </button>
+            )}
+
             <button
               onClick={fetchHealth}
               disabled={loading}
               className="p-2 text-purple-700 hover:bg-lavender-100 rounded-lg transition-colors border border-lavender-200"
-              title="Refresh Health Probe"
+              title="Refresh Probes"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -104,15 +142,15 @@ export function App() {
           </div>
         </div>
 
-        {/* Foundation Architecture Pillars */}
+        {/* Security & Multi-Tenancy Architecture Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="card-surface p-6 space-y-3">
             <div className="w-10 h-10 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-              <Cpu className="w-5 h-5" />
+              <ShieldCheck className="w-5 h-5" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">Asynchronous Workers</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Supabase Auth JWT</h2>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Decoupled background worker pool with heartbeat monitoring, lease fencing, and cooperative graceful shutdown.
+              Cryptographic signature verification, expiration checks, and role claim extraction.
             </p>
           </div>
 
@@ -120,9 +158,9 @@ export function App() {
             <div className="w-10 h-10 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
               <Database className="w-5 h-5" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">Transactional Outbox</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Owner Scoping & RLS</h2>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Atomic database-to-queue handoff guaranteeing zero silent job loss under transient broker outages or network partitions.
+              Strict per-tenant isolation in API queries and database row-level security policies.
             </p>
           </div>
 
@@ -130,19 +168,19 @@ export function App() {
             <div className="w-10 h-10 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center text-violet-600">
               <Activity className="w-5 h-5" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">Full Observability</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Rate Limiting</h2>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Correlated JSON execution traces, attempt histories, and decoupled non-blocking Elasticsearch index streaming.
+              Throttling via SlowAPI with per-user token and client IP identification.
             </p>
           </div>
 
           <div className="card-surface p-6 space-y-3">
             <div className="w-10 h-10 rounded-lg bg-fuchsia-50 border border-fuchsia-100 flex items-center justify-center text-fuchsia-600">
-              <ShieldCheck className="w-5 h-5" />
+              <Cpu className="w-5 h-5" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">Advisory AI Guardrails</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Privilege Separation</h2>
             <p className="text-sm text-slate-600 leading-relaxed">
-              CrewAI-assisted failure investigation strictly grounded in execution logs with schema-enforced Pydantic output.
+              Service role keys are restricted to backend workers and never exposed to the frontend.
             </p>
           </div>
         </div>
@@ -152,7 +190,7 @@ export function App() {
           <div className="flex items-center justify-between border-b border-purple-100 pb-4">
             <div className="flex items-center space-x-2">
               <Terminal className="w-5 h-5 text-purple-600" />
-              <h2 className="text-base font-semibold text-slate-900">Foundation Health Probe</h2>
+              <h2 className="text-base font-semibold text-slate-900">Security & Authentication Session</h2>
             </div>
             <a
               href="/docs"
@@ -165,15 +203,19 @@ export function App() {
           </div>
 
           <div className="bg-slate-900 text-slate-100 p-4 rounded-lg font-mono text-xs overflow-x-auto">
-            {loading ? (
-              <p className="text-slate-400 animate-pulse">// Querying /api/health ...</p>
-            ) : error ? (
+            {user ? (
               <div className="space-y-1">
-                <p className="text-rose-400">// Probe Failed: {error}</p>
-                <p className="text-slate-500">// Ensure the FastAPI backend server is running on http://localhost:8000</p>
+                <p className="text-emerald-400">// Authenticated User Context:</p>
+                <p className="text-slate-300">User ID: {user.id}</p>
+                <p className="text-slate-300">Email: {user.email}</p>
+                <p className="text-slate-300">Role: {user.role}</p>
+                <p className="text-slate-300">Token: {token?.slice(0, 16)}...</p>
               </div>
             ) : (
-              <pre>{JSON.stringify(health, null, 2)}</pre>
+              <div className="space-y-1">
+                <p className="text-amber-400">// No active session detected. Click "Sign In" above to authenticate.</p>
+                <p className="text-slate-500">// Unauthenticated requests to protected endpoints will receive 401 Unauthorized.</p>
+              </div>
             )}
           </div>
         </div>
@@ -182,10 +224,21 @@ export function App() {
       {/* Footer */}
       <footer className="border-t border-purple-100 bg-white py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-slate-500">
-          TaskForge Cloud Computing Prototype • Reliable Asynchronous Job Orchestration Platform
+          TaskForge Cloud Computing Platform • Intelligent Asynchronous Job Orchestration Platform
         </div>
       </footer>
+
+      {/* Auth Modal */}
+      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <DashboardContent />
+    </AuthProvider>
   );
 }
 
