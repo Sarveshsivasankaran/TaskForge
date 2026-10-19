@@ -166,6 +166,37 @@ async def get_job_events(
     return [JobEventResponse(**e.to_dict()) for e in events]
 
 
+@router.get(
+    "/{job_id}/logs",
+    summary="Search execution logs in Elasticsearch",
+    description="Queries correlated structured logs for a job from Elasticsearch or bounded buffer."
+)
+async def get_job_logs(
+    job_id: uuid.UUID,
+    attempt_id: Optional[str] = Query(None, description="Optional attempt ID filter"),
+    level: Optional[str] = Query(None, description="Optional log level filter (INFO, WARN, ERROR)"),
+    limit: int = Query(50, ge=1, le=200, description="Max logs to return"),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+) -> List[dict]:
+    owner_filter = None if current_user.is_service_role else current_user.id
+    job = await JobRepository.get_by_id(session, job_id, owner_id=owner_filter)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found."
+        )
+
+    from app.observability.client import es_observability
+    logs = await es_observability.search_logs(
+        job_id=str(job_id),
+        attempt_id=attempt_id,
+        level=level,
+        limit=limit
+    )
+    return logs
+
+
 @router.post(
     "/{job_id}/cancel",
     response_model=JobActionResponse,
@@ -251,3 +282,59 @@ async def manual_retry_job(
         job_id=job_id,
         current_status=JobStatus.QUEUED.value
     )
+
+
+@router.post(
+    "/{job_id}/investigate",
+    summary="Request AI-assisted failure investigation",
+    description="Triggers read-only root-cause analysis based on execution attempts and structured logs."
+)
+async def investigate_job(
+    job_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+) -> dict:
+    owner_filter = None if current_user.is_service_role else current_user.id
+    job = await JobRepository.get_by_id(session, job_id, owner_id=owner_filter, load_relations=True)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found."
+        )
+
+    from app.observability.client import es_observability
+    from app.ai.investigator import FailureInvestigatorService
+
+    logs = await es_observability.search_logs(job_id=str(job_id))
+    investigation = await FailureInvestigatorService.investigate_job(
+        session=session,
+        job=job,
+        attempts=job.attempts or [],
+        logs=logs
+    )
+
+    return investigation.to_dict()
+
+
+@router.get(
+    "/{job_id}/investigations",
+    summary="List investigation reports for a job",
+    description="Returns persisted AI investigation reports."
+)
+async def get_job_investigations(
+    job_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+) -> List[dict]:
+    owner_filter = None if current_user.is_service_role else current_user.id
+    job = await JobRepository.get_by_id(session, job_id, owner_id=owner_filter)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found."
+        )
+
+    from app.models.investigation import JobInvestigation
+    query = select(JobInvestigation).where(JobInvestigation.job_id == job_id).order_by(JobInvestigation.created_at.desc())
+    reports = (await session.execute(query)).scalars().all()
+    return [r.to_dict() for r in reports]

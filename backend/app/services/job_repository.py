@@ -172,7 +172,10 @@ class JobRepository:
         if not job:
             return None
 
-        # Validate transition from current to running
+        # Only queued or retry_wait jobs can be claimed for execution
+        if job.status not in (JobStatus.QUEUED.value, JobStatus.RETRY_WAIT.value):
+            return None
+
         validate_job_state_transition(job.status, JobStatus.RUNNING)
 
         now = datetime.now(timezone.utc)

@@ -10,11 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.logging import logger
-from app.models.enums import AttemptStatus, JobStatus
+from app.models.enums import AttemptStatus, JobStatus, InvalidStateTransitionError
 from app.queue.base import BaseQueueClient, QueueMessage
 from app.queue.factory import get_queue_client
 from app.services.job_repository import JobRepository
 from app.workers.backoff import calculate_backoff_delay
+from app.observability.client import es_observability
 from app.workers.registry import (
     ExecutionContext,
     get_handler,
@@ -67,14 +68,19 @@ class WorkerEngine:
             return False
 
         # 1. Acquire execution lease in database
-        async with self.session_factory() as session:
-            claim_result = await JobRepository.claim_job_lease(
-                session=session,
-                job_id=job_id,
-                worker_id=self.worker_id,
-                lease_duration_seconds=self.lease_duration_seconds
-            )
-            await session.commit()
+        try:
+            async with self.session_factory() as session:
+                claim_result = await JobRepository.claim_job_lease(
+                    session=session,
+                    job_id=job_id,
+                    worker_id=self.worker_id,
+                    lease_duration_seconds=self.lease_duration_seconds
+                )
+                await session.commit()
+        except InvalidStateTransitionError as e:
+            logger.info(f"Skipping job {job_id}: invalid state transition {e}")
+            await self.queue_client.ack(self.queue_name, message.msg_id)
+            return False
 
         if not claim_result:
             # Lease not acquired: another worker claimed the job or state is no longer queued/retry_wait
@@ -106,6 +112,14 @@ class WorkerEngine:
         logger.info(
             f"Worker {self.worker_id} started execution for job {job_id} (type: {job.job_type}, attempt {attempt_number}/{job.max_attempts})",
             extra={"job_id": str(job_id), "attempt_id": str(attempt_id), "worker_id": self.worker_id}
+        )
+        es_observability.record_event(
+            level="INFO",
+            message=f"Started execution attempt {attempt_number} for job {job_id} ({job.job_type})",
+            job_id=str(job_id),
+            attempt_id=str(attempt_id),
+            worker_id=self.worker_id,
+            event_type="JOB_ATTEMPT_STARTED"
         )
 
         context = ExecutionContext(
@@ -184,6 +198,15 @@ class WorkerEngine:
                     f"Job {job_id} succeeded in {duration_ms}ms",
                     extra={"job_id": str(job_id), "duration_ms": duration_ms, "worker_id": self.worker_id}
                 )
+                es_observability.record_event(
+                    level="INFO",
+                    message=f"Job {job_id} succeeded in {duration_ms}ms",
+                    job_id=str(job_id),
+                    attempt_id=str(attempt_id),
+                    worker_id=self.worker_id,
+                    event_type="JOB_ATTEMPT_SUCCEEDED",
+                    duration_ms=duration_ms
+                )
                 return True
             else:
                 is_transient = error_info["error_type"] in ("TransientExecutionError", "TimeoutError")
@@ -215,6 +238,17 @@ class WorkerEngine:
                     is_dead_letter=not should_retry
                 )
                 await session.commit()
+
+                es_observability.record_event(
+                    level="WARN" if should_retry else "ERROR",
+                    message=f"Job {job_id} attempt {attempt_number} failed: {error_info['message']}",
+                    job_id=str(job_id),
+                    attempt_id=str(attempt_id),
+                    worker_id=self.worker_id,
+                    event_type="JOB_ATTEMPT_RETRYING" if should_retry else "JOB_ATTEMPT_DEAD_LETTER",
+                    duration_ms=duration_ms,
+                    error_type=error_info["error_type"]
+                )
 
                 # Acknowledge broker message; if retrying, the scheduler/outbox redelivers at next_run_at
                 await self.queue_client.ack(self.queue_name, message.msg_id)
