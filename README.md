@@ -124,16 +124,27 @@ Open `http://localhost:5173` in your browser.
 
 - [x] **Phase 0:** Repository Assessment, Architecture Decisions, & Planning
 - [x] **Phase 1:** Project Foundation (Backend FastAPI + Frontend React/TS/Tailwind)
-- [ ] **Phase 2:** Database & Data Model (Migrations, Jobs, Attempts, Events, Outbox)
-- [ ] **Phase 3:** Authentication & Authorization (Supabase Auth, JWT verification)
-- [ ] **Phase 4:** Core Job Management API (Submission, Listing, Filtering, Idempotency)
-- [ ] **Phase 5:** Queue & Outbox Dispatcher (PGMQ / Table Queue, At-Least-Once Delivery)
-- [ ] **Phase 6:** Python Worker Engine (Handler Registry, Leases, Attempt Lifecycle)
-- [ ] **Phase 7:** Reliability & Recovery (Backoff Jitter, Heartbeats, Abandoned Recovery)
-- [ ] **Phase 8:** Frontend Operations Dashboard (Metrics, Explorer, Timeline, Submission)
-- [ ] **Phase 9:** Elasticsearch Observability (Decoupled JSON Streamer, Search)
-- [ ] **Phase 10:** CrewAI Failure Investigator (Advisory Agent, Schema Guardrails)
-- [ ] **Phase 11:** Metrics & Live Updates (Aggregations, P95/P99 latency)
-- [ ] **Phase 12:** Rigorous Testing & Security Review (Chaos, Poison Pills, Injections)
-- [ ] **Phase 13:** Cloud Deployment Readiness
-- [ ] **Phase 14:** Reproducible Demonstration & Operator Runbook
+- [x] **Phase 2:** Database & Data Model (Migrations, Jobs, Attempts, Events, Outbox)
+- [x] **Phase 3:** Authentication & Authorization (Supabase Auth, JWT verification, SlowAPI Rate Limiting)
+- [x] **Phase 4:** Core Job Management API (Submission, Listing, Filtering, Idempotency)
+- [x] **Phase 5:** Queue & Outbox Dispatcher (PGMQ / Table Queue, At-Least-Once Delivery)
+- [x] **Phase 6:** Python Worker Engine (Handler Registry, Leases, Attempt Lifecycle)
+- [x] **Phase 7:** Reliability & Recovery (Backoff Jitter, Heartbeats, Abandoned Recovery)
+- [x] **Phase 8:** Frontend Operations Dashboard (Metrics, Explorer, Timeline, Submission)
+- [x] **Phase 9:** Elasticsearch Observability (Decoupled JSON Streamer, Search)
+- [x] **Phase 10:** CrewAI Failure Investigator (Advisory Agent, Schema Guardrails)
+- [x] **Phase 11:** Metrics & Live Updates (Aggregations, P95/P99 latency)
+- [x] **Phase 12:** Rigorous Testing & Security Review (Chaos, Poison Pills, Injections)
+- [x] **Phase 13:** Cloud Deployment Readiness (Docker Compose, Nginx, GitHub Actions CI)
+- [x] **Phase 14:** Reproducible Demonstration & Operator Runbook ([`DEMO_RUNBOOK.md`](file:///DEMO_RUNBOOK.md))
+
+---
+
+## 🎮 Demonstration & Verification Runbook
+
+A complete walkthrough for architects and evaluators is provided in [**`DEMO_RUNBOOK.md`**](DEMO_RUNBOOK.md).
+
+To run the automated console demonstration:
+```bash
+python scripts/demo_runner.py
+```
