@@ -1,7 +1,7 @@
 """Application configuration module using Pydantic Settings."""
 
 from typing import List, Union
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,8 +39,16 @@ class Settings(BaseSettings):
         return ["*"]
 
     # Supabase Configuration
-    supabase_url: str = Field(default="http://localhost:54321", description="Supabase API URL")
-    supabase_anon_key: str = Field(default="dummy-anon-key", description="Supabase public anon key")
+    supabase_url: str = Field(
+        default="http://localhost:54321",
+        validation_alias=AliasChoices("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "VITE_SUPABASE_URL"),
+        description="Supabase API URL"
+    )
+    supabase_anon_key: str = Field(
+        default="dummy-anon-key",
+        validation_alias=AliasChoices("SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_ANON_KEY"),
+        description="Supabase public anon key"
+    )
     supabase_service_role_key: str = Field(default="", description="Supabase privileged service role key")
     supabase_db_url: str = Field(
         default="sqlite+aiosqlite:///./taskforge_dev.db",

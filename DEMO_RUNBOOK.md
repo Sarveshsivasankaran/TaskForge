@@ -59,18 +59,16 @@ Welcome to the TaskForge Demonstration Runbook. This guide provides step-by-step
 ### Prerequisites
 - **Python**: 3.11+ (or 3.14)
 - **Node.js**: 20+ (with npm)
-- **Docker & Docker Compose** (Optional for containerized run)
 
 ### Environment Setup
-Copy the environment template:
+Copy the environment template or populate `.env`:
 ```bash
 cp .env.example .env
 ```
-Default configuration uses local SQLite + TableQueue fallback with deterministic AI evaluation out of the box. No external cloud credentials required for local testing!
+Default configuration connects to your Supabase PostgreSQL instance and Auth project.
 
 ### Starting the Services
 
-#### Option A: Native Local Development
 1. **Backend API Service**:
    ```bash
    cd backend
@@ -91,11 +89,6 @@ Default configuration uses local SQLite + TableQueue fallback with deterministic
    npm run dev
    ```
    Open `http://localhost:5173` in your browser.
-
-#### Option B: Docker Compose
-```bash
-docker-compose up --build
-```
 
 ---
 

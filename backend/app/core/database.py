@@ -23,13 +23,14 @@ if "sqlite" in settings.supabase_db_url:
     # SQLite specific concurrency settings
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
-    # PostgreSQL pool tuning
+    # PostgreSQL pool tuning (PgBouncer/Supavisor transaction pooler support)
     engine_kwargs.update({
         "pool_size": 20,
         "max_overflow": 10,
         "pool_timeout": 30,
         "pool_recycle": 1800,
         "pool_pre_ping": True,
+        "connect_args": {"statement_cache_size": 0},
     })
 
 engine = create_async_engine(settings.supabase_db_url, **engine_kwargs)

@@ -66,7 +66,6 @@ TaskForge/
 │   │   ├── observability/  # Elasticsearch client and event publisher
 │   │   └── ai/             # CrewAI failure investigator
 │   ├── tests/              # Automated pytest suite
-│   ├── Dockerfile
 │   └── pyproject.toml
 ├── frontend/
 │   ├── src/
@@ -76,10 +75,8 @@ TaskForge/
 │   │   ├── hooks/          # Custom data-fetching hooks
 │   │   ├── lib/            # API & Supabase client utilities
 │   │   └── types/          # TypeScript interfaces
-│   ├── Dockerfile
 │   └── package.json
 ├── migrations/             # Alembic / SQL database migrations
-├── docker-compose.yml      # Local container orchestration
 ├── .env.example            # Documented environment template
 └── README.md
 ```
@@ -135,7 +132,7 @@ Open `http://localhost:5173` in your browser.
 - [x] **Phase 10:** CrewAI Failure Investigator (Advisory Agent, Schema Guardrails)
 - [x] **Phase 11:** Metrics & Live Updates (Aggregations, P95/P99 latency)
 - [x] **Phase 12:** Rigorous Testing & Security Review (Chaos, Poison Pills, Injections)
-- [x] **Phase 13:** Cloud Deployment Readiness (Docker Compose, Nginx, GitHub Actions CI)
+- [x] **Phase 13:** Cloud Deployment Readiness (GitHub Actions CI/CD Pipeline)
 - [x] **Phase 14:** Reproducible Demonstration & Operator Runbook ([`DEMO_RUNBOOK.md`](file:///DEMO_RUNBOOK.md))
 
 ---
